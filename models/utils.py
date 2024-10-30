@@ -52,6 +52,52 @@ def notmiwae_loss(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x, s
     return notmiwae_loss
 
 
+
+def notmiwae_loss_image(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x, s, out_dist='gauss', n_samples=1):
+    # Reconstruction loss (adapted for different out_dist)
+    if out_dist in ['gauss', 'normal', 'truncated_normal']:
+        output_dist = dist.Normal(loc=mu, scale=std)
+        if out_dist == 'truncated_normal':
+            # For truncated normal, we need to handle the log_prob differently
+            log_p_x_given_z = output_dist.log_prob(
+                x.unsqueeze(1).clamp(0.0001, 0.9999)
+            ).sum(-1)
+        else:
+            log_p_x_given_z = (output_dist.log_prob(x.unsqueeze(1)) * s[:,None,:]).sum((-2,-1)).squeeze(-1)
+
+    elif out_dist == 'bern':
+        logits = mu  # For Bernoulli, mu represents the logits
+        output_dist = dist.Bernoulli(logits=logits)
+        log_p_x_given_z = output_dist.log_prob(x.unsqueeze(1)).sum(-1)
+
+    elif out_dist in ['t', 't-distribution']:
+        df = std  # For Student's t, std represents the degrees of freedom
+        output_dist = dist.StudentT(loc=mu, scale=1.0, df=df)  # Assuming scale=1 for simplicity
+        log_p_x_given_z = output_dist.log_prob(x.unsqueeze(1)).sum(-1)
+
+    else:
+        raise ValueError("Invalid out_dist")
+
+    # Missing process loss (adapted for different missing_process)
+    p_s_given_x = dist.Bernoulli(logits=logits_miss)
+    log_p_s_given_x = p_s_given_x.log_prob(s.unsqueeze(1)).sum((-2,-1)).squeeze(-1)
+    
+    q_z_given_x = dist.Normal(loc=q_mu.unsqueeze(1), scale=torch.exp(q_log_sig2.unsqueeze(1) / 2))
+    log_q_z_given_x = q_z_given_x.log_prob(l_z).sum((-1))
+    
+    # NotMIWAE loss
+    prior = dist.Normal(loc=torch.tensor(0.0), scale=torch.tensor(1.0))
+    log_p_z = prior.log_prob(l_z).sum((-1))
+    
+    l_w = log_p_x_given_z + log_p_s_given_x + log_p_z - log_q_z_given_x 
+    log_avg_weight = torch.logsumexp(l_w, dim=1) - torch.log(torch.tensor(n_samples, dtype=torch.float32))
+    notmiwae_loss = -torch.mean(log_avg_weight)
+
+    return notmiwae_loss
+
+
+
+
 #%%
 
 
@@ -99,6 +145,54 @@ def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100,
         print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
         
     return train_loss_history, val_loss_history
+
+
+
+def train_image(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100, n_samples=1, learning_rate=1e-3):
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    
+    train_loss_history = []
+    val_loss_history = []
+    
+    for epoch in range(num_epochs):
+        model.train()
+        train_loss = 0.0
+        for i in range(0, len(X_train), batch_size):
+            x_batch = X_train[i:i+batch_size]
+            s_batch = S_train[i:i+batch_size]
+
+            optimizer.zero_grad()
+            mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss = model(x_batch, s_batch, n_samples)
+            
+            
+            # Calculate loss
+            loss = notmiwae_loss_image(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x_batch, s_batch, model.out_dist, n_samples) 
+            
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item() * x_batch.size(0)
+
+
+        train_loss /= len(X_train)
+        train_loss_history.append(train_loss)
+
+        # Validation
+        model.eval()
+        with torch.no_grad():
+            val_loss = 0.0
+            for i in range(0, len(X_val), batch_size):
+                x_batch_val = X_val[i:i+batch_size]
+                s_batch_val = S_val[i:i+batch_size]
+                mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss = model(x_batch_val, s_batch_val, n_samples)
+                val_loss += notmiwae_loss_image(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x_batch_val, s_batch_val, model.out_dist, n_samples).item() * x_batch_val.size(0)
+            val_loss /= len(X_val)
+            val_loss_history.append(val_loss)
+
+        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+        
+    return train_loss_history, val_loss_history
+
 
 
 #%%

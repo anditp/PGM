@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import sys
 
 
-sys.path.append("/Users/andrei/Desktop/PGM/models")
+#sys.path.append("/Users/andrei/Desktop/PGM/models")
 from notMIWAE import *
 from models import *
 from utils import *
@@ -67,16 +67,14 @@ model = NotMIWAE(d, n_latent, n_hidden, activation, out_dist)
 train_loss_history, val_loss_history = train(model, X_train_missing, mask_train, X_val_missing, mask_val, 
                                              batch_size, num_epochs, n_samples, learning_rate)
 
-#%%
 
 rmse_val = rmse_imputation_error(model, torch.tensor(X_val, dtype=torch.float32), mask_val)
 print(f"RMSE Imputation Error (Validation): {rmse_val:.4f}")
 
-#%%
 
 plot_s_given_x_lines(model)
 
-#%%
+#%%    SVHN dataset
 
 import scipy.io as sio
 
@@ -118,7 +116,7 @@ learning_rate = 1e-3   # Learning rate
 model = ImageNotMIWAE()
 
 # Train the model
-train_loss_history, val_loss_history = train(model, X_train_missing, mask_train, X_val_missing, mask_val, 
+train_loss_history, val_loss_history = train_image(model, X_train_missing, mask_train, X_val_missing, mask_val, 
                                              batch_size, num_epochs, n_samples, learning_rate)
 
 

@@ -141,9 +141,6 @@ def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100,
     
     train_loss_history = []
     val_loss_history = []
-    X_train = X_train.clone()[:X_train.shape[0] - (X_train.shape[0] % batch_size)]
-    X_train = X_val.clone()[:X_val.shape[0] - (X_val.shape[0] % batch_size)]
-    
     
     for epoch in range(num_epochs):
         model.train()
@@ -157,7 +154,7 @@ def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100,
             
             
             # Calculate loss
-            loss = notmiwae_loss(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x_batch, s_batch, model.out_dist, n_samples) 
+            loss = notmiwae_loss_image(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x_batch, s_batch, model.out_dist, n_samples) 
             
             loss.backward()
             optimizer.step()
@@ -176,7 +173,7 @@ def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100,
                 x_batch_val = X_val[i:i+batch_size]
                 s_batch_val = S_val[i:i+batch_size]
                 mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss = model(x_batch_val, s_batch_val, n_samples)
-                val_loss += notmiwae_loss(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x_batch_val, s_batch_val, model.out_dist, n_samples).item() * x_batch_val.size(0)
+                val_loss += notmiwae_loss_image(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x_batch_val, s_batch_val, model.out_dist, n_samples).item() * x_batch_val.size(0)
             val_loss /= len(X_val)
             val_loss_history.append(val_loss)
 
@@ -298,7 +295,7 @@ def rgb2gray(rgb):
 
 
 
-def notmiwae_loss(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x, s, out_dist='gauss', n_samples=1):
+def notmiwae_loss_image(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x, s, out_dist='gauss', n_samples=1):
     # Reconstruction loss (adapted for different out_dist)
     if out_dist in ['gauss', 'normal', 'truncated_normal']:
         output_dist = dist.Normal(loc=mu, scale=std)
