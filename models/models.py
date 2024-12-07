@@ -3,10 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as dist
 
-
-#%%
-
-
 class Encoder(nn.Module):
     def __init__(self, d, n_latent=50, n_hidden=100, activation = nn.Tanh()):
         super(Encoder, self).__init__()
@@ -14,11 +10,12 @@ class Encoder(nn.Module):
         self.d = d
         self.n_latent = n_latent
         self.n_hidden = n_hidden
+        self.activation = activation
         
         self.encoder = nn.Sequential(nn.Linear(self.d, self.n_hidden), 
-                                     activation,
+                                     self.activation,
                                      nn.Linear(self.n_hidden, self.n_hidden),
-                                     activation)
+                                     self.activation)
         self.mu_head = nn.Linear(self.n_hidden, self.n_latent)
         self.std_head = nn.Linear(self.n_hidden, self.n_latent)
         
@@ -160,8 +157,9 @@ class MissingProcessDecoder(nn.Module):
         elif missing_process == 'selfmasking_known':
             self.W = -50
             self.b = .75
+        # TODO: Add more missing processes
         else:
-            raise ValueError("Invalid missing_process. Use 'selfmasking', 'selfmasking_known', 'linear', or 'nonlinear'")
+            raise ValueError("Invalid missing_process. Use 'agnostic', 'selfmasking', 'selfmasking_known', 'linear', or 'nonlinear'")
             
     def forward(self, z):
         if self.missing_process == 'agnostic':
