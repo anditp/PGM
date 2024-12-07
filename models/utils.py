@@ -99,13 +99,14 @@ def notmiwae_loss_image(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss
 
 
 #%%
-
-
-def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100, n_samples=1, learning_rate=1e-3):
+def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100, n_samples=1, learning_rate=1e-3, patience = 50):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     
     train_loss_history = []
     val_loss_history = []
+    best_val_loss = float('inf')  
+    best_model_state = None       
+    epochs_without_improvement = 0  
 
     for epoch in range(num_epochs):
         model.train()
@@ -117,7 +118,6 @@ def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100,
             optimizer.zero_grad()
             mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss = model(x_batch, s_batch, n_samples)
             
-            
             # Calculate loss
             loss = notmiwae_loss(mu, std, q_mu, q_log_sig2, l_z, l_out_mixed, logits_miss, x_batch, s_batch, model.out_dist, n_samples) 
             
@@ -125,7 +125,6 @@ def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100,
             optimizer.step()
 
             train_loss += loss.item() * x_batch.size(0)
-
 
         train_loss /= len(X_train)
         train_loss_history.append(train_loss)
@@ -142,7 +141,25 @@ def train(model, X_train, S_train, X_val, S_val, batch_size=128, num_epochs=100,
             val_loss /= len(X_val)
             val_loss_history.append(val_loss)
 
+            # Check for best model
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = model.state_dict()  # Guardar los pesos del mejor modelo
+                epochs_without_improvement = 0  # Reiniciar el contador
+            else:
+                epochs_without_improvement += 1  # Incrementar si no hay mejora
+
         print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+
+        # Early stopping
+        if epochs_without_improvement >= patience:
+            print(f"Early stopping at epoch {epoch+1} due to no improvement in validation loss for {patience} epochs.")
+            break
+    
+    # Restaurar los mejores pesos
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print("Restored best model with Val Loss: {:.4f}".format(best_val_loss))
         
     return train_loss_history, val_loss_history
 
