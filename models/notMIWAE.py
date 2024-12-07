@@ -3,15 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as dist
 
-from models import *
-
-
-#%%
-
+from models.models import *
 
 class NotMIWAE(nn.Module):
     def __init__(self, d, n_latent=50, n_hidden=100,  
-                 activation=torch.tanh, out_dist='gauss', 
+                 activation=nn.Tanh(), out_dist='gauss', 
                  missing_process='agnostic'):
         super(NotMIWAE, self).__init__()
 
@@ -23,13 +19,13 @@ class NotMIWAE(nn.Module):
         self.missing_process = missing_process
 
         # Encoder
-        self.encoder = Encoder(d, n_latent, n_hidden, activation)
+        self.encoder = Encoder(self.d, self.n_latent, self.n_hidden, self.activation)
         
         # Decoder
-        self.decoder = Decoder(d, n_latent, n_hidden, out_dist, activation)
+        self.decoder = Decoder(self.d, self.n_latent, self.n_hidden, self.out_dist, self.activation)
         
         # Missing Process Decoder
-        self.missing_process_decoder = MissingProcessDecoder(d, n_hidden, missing_process)
+        self.missing_process_decoder = MissingProcessDecoder(self.d, self.n_hidden, self.missing_process)
 
 
     def forward(self, x, s, n_samples=1):
