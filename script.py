@@ -1,3 +1,4 @@
+#%%
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,13 +6,18 @@ import torch.distributions as dist
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import os
 
+# Get the current directory
+current_dir = os.getcwd()
 
-#sys.path.append("/Users/andrei/Desktop/PGM/models")
+# Add the models directory to the sys.path
+models_dir = os.path.join(current_dir, "models")
+sys.path.append(models_dir)
+
 from notMIWAE import *
 from models import *
 from utils import *
-
 
 #%%
 
@@ -53,6 +59,7 @@ mask_val = torch.tensor(mask_val, dtype=torch.float32)
 
 # Define hyperparameters (from the paper)
 d = X.shape[1]          # Input dimension
+n_hidden = 128
 n_latent = 20        # Latent space dimension (p - 1)
 n_samples = 20         # Importance samples
 batch_size = 16        # Batch size
@@ -61,7 +68,9 @@ num_epochs = num_iterations // (X.shape[0] // batch_size)    # Number of epochs
 learning_rate = 1e-3   # Learning rate
 
 # Initialize the model
-model = NotMIWAE(d, n_latent, n_hidden, activation, out_dist)
+model = NotMIWAE(d, n_latent, n_hidden) # activation: tanh
+                                        # out_dist: gauss
+                                        # missing_process: agnostic
 
 # Train the model
 train_loss_history, val_loss_history = train(model, X_train_missing, mask_train, X_val_missing, mask_val, 
@@ -78,8 +87,16 @@ plot_s_given_x_lines(model)
 
 import scipy.io as sio
 
-train_data = sio.loadmat('/Users/andrei/Desktop/PGM/train_32x32.mat')
-test_data = sio.loadmat('/Users/andrei/Desktop/PGM/test_32x32.mat')
+# Get the current working directory
+current_dir = os.getcwd()
+
+# Construct the file paths
+train_file_path = os.path.join(current_dir, 'PGM', 'train_32x32.mat')
+test_file_path = os.path.join(current_dir, 'PGM', 'test_32x32.mat')
+
+# Load the data
+train_data = sio.loadmat(train_file_path)
+test_data = sio.loadmat(test_file_path)
 
 # access to the dict
 X_train = rgb2gray(train_data['X'].transpose((3,0,1,2))) / 255
